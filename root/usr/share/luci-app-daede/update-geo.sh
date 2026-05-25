@@ -20,8 +20,8 @@ case "$TYPE" in
 		;;
 esac
 
-LOCK="/tmp/luci-app-daed.${TYPE}.lock"
-LOG="/tmp/luci-app-daed.${TYPE}.log"
+LOCK="/tmp/luci-app-daede.${TYPE}.lock"
+LOG="/tmp/luci-app-daede.${TYPE}.log"
 
 if [ -f "$LOCK" ]; then
 	# Lock is fresh (< 5 min)? Refuse. Stale? Remove and proceed.

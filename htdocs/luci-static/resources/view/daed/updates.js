@@ -60,7 +60,7 @@ function probeFile(path) {
 }
 
 function probePkg(pkg) {
-	return fs.exec('/usr/share/luci-app-daed/pkg-info.sh', [pkg]).then(function(res) {
+	return fs.exec('/usr/share/luci-app-daede/pkg-info.sh', [pkg]).then(function(res) {
 		const out = (res.stdout || '').trim().split('\t');
 		return { installed: out[0] || '', latest: out[1] || '' };
 	}).catch(function() {
@@ -117,10 +117,10 @@ return view.extend({
 			const label = kind === 'geoip' ? 'GeoIP' : 'GeoSite';
 			btn.disabled = true;
 			btn.textContent = '...';
-			return fs.exec('/usr/share/luci-app-daed/update-geo.sh', [kind]).then(function(res) {
+			return fs.exec('/usr/share/luci-app-daede/update-geo.sh', [kind]).then(function(res) {
 				if (res.code === 0) {
 					ui.addNotification(null, E('p', _('%s download started — will refresh in 1–3 min.').format(label)), 'info');
-					setTimeout(function() { tailLog('/tmp/luci-app-daed.' + kind + '.log', logPane); }, 2000);
+					setTimeout(function() { tailLog('/tmp/luci-app-daede.' + kind + '.log', logPane); }, 2000);
 				} else if (res.code === 75) {
 					ui.addNotification(null, E('p', _('%s update already running.').format(label)), 'warning');
 				} else {
@@ -134,16 +134,16 @@ return view.extend({
 			});
 		};
 
-		// === Package updates (dae|daed / luci-app-daed) ===
+		// === Package updates (dae|daed / luci-app-daede) ===
 		const upgradePkg = function(pkg, btn) {
 			if (!confirm(_('Run "apk upgrade %s" now? This may restart the active backend.').format(pkg)))
 				return;
 			btn.disabled = true;
 			btn.textContent = '...';
-			return fs.exec('/usr/share/luci-app-daed/update-pkg.sh', [pkg]).then(function(res) {
+			return fs.exec('/usr/share/luci-app-daede/update-pkg.sh', [pkg]).then(function(res) {
 				if (res.code === 0) {
 					ui.addNotification(null, E('p', _('%s upgrade started — see log below.').format(pkg)), 'info');
-					setTimeout(function() { tailLog('/tmp/luci-app-daed.pkg-' + pkg + '.log', logPane); }, 3000);
+					setTimeout(function() { tailLog('/tmp/luci-app-daede.pkg-' + pkg + '.log', logPane); }, 3000);
 				} else if (res.code === 75) {
 					ui.addNotification(null, E('p', _('%s upgrade already running.').format(pkg)), 'warning');
 				} else {
@@ -169,7 +169,7 @@ return view.extend({
 			corePkgs.forEach(function(pkg) {
 				probes.push(probePkg(pkg));
 			});
-			probes.push(probePkg('luci-app-daed'));
+			probes.push(probePkg('luci-app-daede'));
 
 			if (ctx.backend.useNetns)
 				probes.push(probeFile(HEALTH_PATHS.netns));
@@ -210,7 +210,7 @@ return view.extend({
 					const label = pkg + ' binary' + (ctx.name === pkg ? ' · ' + _('active') : '');
 					return { k: pkg, name: label, r: coreInfo[pkg] };
 				}).concat([
-					{ k: 'luci-app-daed', name: 'luci-app-daed', r: luci }
+					{ k: 'luci-app-daede', name: 'luci-app-daede', r: luci }
 				]).forEach(function(entry) {
 					const btn = E('button', { 'class': 'dd-up-btn' }, 'Upgrade');
 					btn.addEventListener('click', function() { upgradePkg(entry.k, btn); });
