@@ -70,6 +70,19 @@ const CSS = [
 	'.dd-editor-status.err{color:#d96d6d}',
 	'.dd-editor-hint{font-size:11.5px;opacity:.62;line-height:1.5;margin:0 0 8px;padding:7px 10px;border-radius:6px;background:rgba(56,134,161,.06);border-left:3px solid rgba(56,134,161,.5)}',
 	'.dd-editor-hint b{font-weight:600;opacity:.85}',
+	'.dd-ph-warn{display:none;font-size:12px;line-height:1.6;margin:0 0 8px;padding:10px 12px;border-radius:6px;background:rgba(217,158,0,.08);border-left:3px solid rgba(217,158,0,.7);color:inherit}',
+	'.dd-ph-warn.show{display:block}',
+	'.dd-ph-warn-title{font-weight:600;margin-bottom:6px;color:#b07d00;font-size:12.5px}',
+	'body.dark .dd-ph-warn-title,html[data-theme="dark"] .dd-ph-warn-title,html[data-bs-theme="dark"] .dd-ph-warn-title{color:#e0b34a}',
+	'.dd-ph-howto{margin:4px 0 8px;opacity:.85}',
+	'.dd-ph-howto code{padding:1px 5px;border-radius:3px;background:rgba(128,128,128,.18);font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}',
+	'.dd-ph-list{margin:6px 0 0;padding:6px 0 0;list-style:none;border-top:1px dashed rgba(217,158,0,.3)}',
+	'.dd-ph-list-label{font-size:11px;opacity:.6;margin:0 0 4px}',
+	'.dd-ph-list li{padding:2px 0;display:flex;gap:8px;align-items:baseline;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:11px}',
+	'.dd-ph-list .dd-ph-ln{display:inline-block;min-width:38px;text-align:center;padding:1px 4px;border-radius:3px;background:rgba(217,158,0,.18);color:#8a6300;opacity:.95;cursor:pointer;font-weight:600;text-decoration:none}',
+	'.dd-ph-list .dd-ph-ln:hover{background:rgba(217,158,0,.32)}',
+	'body.dark .dd-ph-list .dd-ph-ln,html[data-theme="dark"] .dd-ph-list .dd-ph-ln,html[data-bs-theme="dark"] .dd-ph-list .dd-ph-ln{color:#f0c763;background:rgba(217,158,0,.22)}',
+	'.dd-ph-list .dd-ph-txt{opacity:.7;word-break:break-all}',
 	'body.dark .dd-card,html[data-theme="dark"] .dd-card,html[data-bs-theme="dark"] .dd-card{border-color:rgba(255,255,255,.08);background:rgba(255,255,255,.02)}',
 	'body.dark .dd-adv-bar,html[data-theme="dark"] .dd-adv-bar,html[data-bs-theme="dark"] .dd-adv-bar{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.10)}',
 	'body.dark .dd-settings-card .cbi-value-field input,body.dark .dd-settings-card .cbi-value-field select,body.dark .dd-settings-card .cbi-value-field textarea,html[data-theme="dark"] .dd-settings-card .cbi-value-field input,html[data-theme="dark"] .dd-settings-card .cbi-value-field select,html[data-theme="dark"] .dd-settings-card .cbi-value-field textarea,html[data-bs-theme="dark"] .dd-settings-card .cbi-value-field input,html[data-bs-theme="dark"] .dd-settings-card .cbi-value-field select,html[data-bs-theme="dark"] .dd-settings-card .cbi-value-field textarea{border-color:rgba(255,255,255,.18)}'
@@ -383,6 +396,23 @@ function renderDaeSettings() {
 	);
 }
 
+/* dae 示例里的占位订阅特征 —— example.com 域名或 relative/path/to/* 路径 */
+const RE_PLACEHOLDER_URL = /(['"])((?:https?|https-file|file):\/\/[^'"]*?(?:example\.com|relative\/path\/to)[^'"]*)\1/;
+
+function detectPlaceholders(text) {
+	if (!text) return [];
+	const lines = text.split('\n');
+	const out = [];
+	for (let i = 0; i < lines.length; i++) {
+		const ln = lines[i];
+		const stripped = ln.replace(/^\s*#.*$/, '');
+		if (!stripped) continue;
+		const m = stripped.match(RE_PLACEHOLDER_URL);
+		if (m) out.push({ line: i + 1, url: m[2], raw: ln.trim() });
+	}
+	return out;
+}
+
 function renderDaeEditor() {
 	const textarea = E('textarea', {
 		'class': 'dd-editor',
@@ -393,8 +423,15 @@ function renderDaeEditor() {
 	const init = E('button', { 'class': 'cbi-button cbi-button-action' }, _('Initialize from example'));
 	const status = E('span', { 'class': 'dd-editor-status' }, '');
 
+	const phWarn = E('div', { 'class': 'dd-ph-warn' }, [
+		E('div', { 'class': 'dd-ph-warn-title' }, ''),
+		E('div', { 'class': 'dd-ph-howto' }, ''),
+		E('div', { 'class': 'dd-ph-list-label' }, _('Placeholder lines (click line number to jump):')),
+		E('ul', { 'class': 'dd-ph-list' })
+	]);
+
 	let statusTimer = null;
-	function flashStatus(text, kind) {
+	function flashStatus(text, kind, holdMs) {
 		status.textContent = text;
 		status.classList.remove('ok', 'err');
 		if (kind) status.classList.add(kind);
@@ -402,32 +439,90 @@ function renderDaeEditor() {
 		if (statusTimer) clearTimeout(statusTimer);
 		statusTimer = setTimeout(function() {
 			status.classList.remove('show');
-		}, 3000);
+		}, holdMs || 3000);
 	}
+
+	function jumpToLine(lineNo) {
+		const lines = textarea.value.split('\n');
+		let offset = 0;
+		for (let i = 0; i < lineNo - 1 && i < lines.length; i++)
+			offset += lines[i].length + 1;
+		textarea.focus();
+		textarea.setSelectionRange(offset, offset + (lines[lineNo - 1] || '').length);
+		const lineHeight = 18;
+		textarea.scrollTop = Math.max(0, (lineNo - 4) * lineHeight);
+	}
+
+	function refreshPlaceholders() {
+		const hits = detectPlaceholders(textarea.value);
+		const titleEl = phWarn.querySelector('.dd-ph-warn-title');
+		const howtoEl = phWarn.querySelector('.dd-ph-howto');
+		const listEl = phWarn.querySelector('.dd-ph-list');
+		while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+		if (!hits.length) {
+			phWarn.classList.remove('show');
+			return;
+		}
+		titleEl.textContent = _('⚠ 还差订阅链接才能跑：检测到 %d 行占位 URL').format(hits.length);
+		while (howtoEl.firstChild) howtoEl.removeChild(howtoEl.firstChild);
+		/* 用 DOM 拼成富文本说明 —— 比单条字符串可读 */
+		howtoEl.appendChild(document.createTextNode(_('这些 ')));
+		const c1 = document.createElement('code'); c1.textContent = 'example.com'; howtoEl.appendChild(c1);
+		howtoEl.appendChild(document.createTextNode(_(' / ')));
+		const c2 = document.createElement('code'); c2.textContent = 'relative/path/to'; howtoEl.appendChild(c2);
+		howtoEl.appendChild(document.createTextNode(_(' 都是 dae 官方模板留的假地址，不是真订阅。把其中任意一行的 URL 换成你机场的订阅链接（删掉多余行），保存即可跑通。')));
+		hits.forEach(function(h) {
+			const lnSpan = E('span', { 'class': 'dd-ph-ln', 'title': _('Jump to line') }, 'L' + h.line);
+			lnSpan.addEventListener('click', function() { jumpToLine(h.line); });
+			const txt = E('span', { 'class': 'dd-ph-txt' }, h.url);
+			listEl.appendChild(E('li', {}, [ lnSpan, txt ]));
+		});
+		phWarn.classList.add('show');
+	}
+
+	textarea.addEventListener('input', refreshPlaceholders);
 
 	function loadConfig() {
 		return fs.read_direct(backend.BACKENDS.dae.config, 'text').then(function(content) {
 			textarea.value = content || '';
 		}).catch(function() {
-			/* 文件不存在是正常状态（dae 还没初始化配置）—— 不弹通知，由 placeholder 引导 */
 			textarea.value = '';
-		});
+		}).finally(refreshPlaceholders);
 	}
+
+	/* 校验流程：先写到 /tmp/dae-validate.dae 干测 → dae validate 通过才覆盖正式 config */
+	const VALIDATE_PATH = '/tmp/dae-validate.dae';
 
 	save.addEventListener('click', function(ev) {
 		ev.preventDefault();
 		save.disabled = true;
-		flashStatus(_('Saving…'));
-		fs.write(backend.BACKENDS.dae.config, textarea.value, 384)
+		flashStatus(_('Validating…'));
+		fs.write(VALIDATE_PATH, textarea.value, 384)
+			.then(function() { return fs.exec('/usr/bin/dae', ['validate', '-c', VALIDATE_PATH]); })
+			.then(function(res) {
+				if (res && res.code !== 0) {
+					const err = (res.stderr || res.stdout || ('exit ' + res.code)).trim().split('\n')[0];
+					flashStatus(_('Validate failed: %s').format(err), 'err', 8000);
+					throw new Error('validate-failed');
+				}
+				flashStatus(_('Saving…'));
+				return fs.write(backend.BACKENDS.dae.config, textarea.value, 384);
+			})
 			.then(function() { return fs.exec(backend.BACKENDS.dae.initd, ['hot_reload']); })
 			.then(function(res) {
 				if (res && res.code !== 0)
-					flashStatus(_('Reload failed: %s').format(res.stderr || res.stdout || ('exit ' + res.code)), 'err');
+					flashStatus(_('Reload failed: %s').format(res.stderr || res.stdout || ('exit ' + res.code)), 'err', 8000);
 				else
-					flashStatus(_('Saved · hot-reloaded'), 'ok');
+					flashStatus(_('Validated · saved · hot-reloaded'), 'ok');
 			})
-			.catch(function(e) { flashStatus(_('Save failed: %s').format(e.message || e), 'err'); })
-			.finally(function() { save.disabled = false; });
+			.catch(function(e) {
+				if (e && e.message === 'validate-failed') return;
+				flashStatus(_('Save failed: %s').format(e.message || e), 'err', 8000);
+			})
+			.finally(function() {
+				save.disabled = false;
+				fs.exec('/bin/rm', ['-f', VALIDATE_PATH]).catch(function() {});
+			});
 	});
 
 	init.addEventListener('click', function(ev) {
@@ -437,6 +532,7 @@ function renderDaeEditor() {
 		fs.read_direct(backend.BACKENDS.dae.example, 'text')
 			.then(function(content) {
 				textarea.value = content || '';
+				refreshPlaceholders();
 				return fs.write(backend.BACKENDS.dae.config, textarea.value, 384);
 			})
 			.then(function() { flashStatus(_('Example loaded'), 'ok'); })
@@ -453,6 +549,7 @@ function renderDaeEditor() {
 			' ',
 			_('dae has no built-in WebUI. Edit the config DSL below by hand (subscriptions, nodes, routing, DNS). "Initialize from example" loads the bundled template — replace the placeholder subscription URL with your own before saving. For point-and-click management, switch backend to daed.')
 		]),
+		phWarn,
 		textarea,
 		E('div', { 'class': 'dd-editor-actions' }, [ save, init, status ])
 	]);
