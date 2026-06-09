@@ -39,15 +39,22 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Build packages
-        uses: openwrt/gh-action-sdk@main
+        uses: kenzok8/gh-action-sdk@hash
         env:
+          CONTAINER: immortalwrt/sdk
           ARCH: ${{ matrix.arch }}-openwrt-${{ matrix.sdk }}
           FEEDNAME: daede
-          PACKAGES: luci-app-daede
+          PACKAGES: dae daed luci-app-daede
+          # wall supplies v2ray-geoip / v2ray-geosite (subpackages of v2ray-geodata)
+          EXTRA_FEEDS: src-git|wall|https://github.com/kenzok8/wall
           NO_REFRESH_CHECK: true
+          IGNORE_ERRORS: true
           INDEX: 1
           KEY_BUILD: ${{ secrets.OPKG_KEY_BUILD }}
           PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
+          # dae / daed go.mod requires Go 1.26; override SDK's bundled golang.
+          GOLANG_REPO: https://github.com/kenzok8/golang
+          GOLANG_BRANCH: '1.26'
 
       - name: Collect packages
         run: |
@@ -169,7 +176,7 @@ jobs:
           }
 
           {
-            echo "# luci-app-daede ${TAG}"
+            echo "# openwrt-daede ${TAG}"
             echo ""
             if [ -n "$PREVIOUS_TAG" ]; then
               echo "_Changes since ${PREVIOUS_TAG} / 自 ${PREVIOUS_TAG} 以来的更新。_"
@@ -186,27 +193,38 @@ jobs:
 
             echo "## Packages / 安装包"
             echo ""
+            cell_ipk() {
+              pkg="$1"; arch="$2"; fallback="$3"
+              f=$(ls dist/${pkg}_*_${arch}.ipk 2>/dev/null | head -1)
+              [ -n "$f" ] && echo "[$(basename $f)](${BASE}/$(basename $f))" || echo "$fallback"
+            }
+            cell_apk() {
+              pkg="$1"; arch="$2"
+              f=$(ls dist/${pkg}-*-${arch}.apk 2>/dev/null | head -1)
+              [ -n "$f" ] && echo "[$(basename $f)](${BASE}/$(basename $f))" || echo "—"
+            }
+            noarch_ipk() {
+              pkg="$1"
+              f=$(ls dist/${pkg}_*_all.ipk 2>/dev/null | head -1)
+              [ -n "$f" ] && echo "[$(basename $f)](${BASE}/$(basename $f))" || echo "—"
+            }
+
             echo "## 📦 SDK 24.10 · 稳定版 (IPK)"
             echo ""
-            echo "| 架构 | luci-app-daede |"
-            echo "| :--- | :--- |"
-            luci_ipk=$(ls dist/luci-app-daede_*_all.ipk 2>/dev/null | head -1)
-            luci_ipk_link=$( [ -n "$luci_ipk" ] && echo "[$(basename $luci_ipk)](${BASE}/$(basename $luci_ipk))" || echo "—" )
+            echo "| 架构 | dae | daed | luci-app-daede |"
+            echo "| :--- | :--- | :--- | :--- |"
+            luci_fallback=$(noarch_ipk luci-app-daede)
             for arch in $ARCHS; do
-              f=$(ls dist/luci-app-daede_*_${arch}.ipk 2>/dev/null | head -1)
-              link=$( [ -n "$f" ] && echo "[$(basename $f)](${BASE}/$(basename $f))" || echo "$luci_ipk_link" )
-              echo "| \`${arch}\` | ${link} |"
+              echo "| \`${arch}\` | $(cell_ipk dae $arch —) | $(cell_ipk daed $arch —) | $(cell_ipk luci-app-daede $arch "$luci_fallback") |"
             done
 
             echo ""
             echo "## 📦 SDK 25.12 · 稳定版 (APK)"
             echo ""
-            echo "| 架构 | luci-app-daede |"
-            echo "| :--- | :--- |"
+            echo "| 架构 | dae | daed | luci-app-daede |"
+            echo "| :--- | :--- | :--- | :--- |"
             for arch in $ARCHS; do
-              f=$(ls dist/luci-app-daede-*-${arch}.apk 2>/dev/null | head -1)
-              link=$( [ -n "$f" ] && echo "[$(basename $f)](${BASE}/$(basename $f))" || echo "—" )
-              echo "| \`${arch}\` | ${link} |"
+              echo "| \`${arch}\` | $(cell_apk dae $arch) | $(cell_apk daed $arch) | $(cell_apk luci-app-daede $arch) |"
             done
           } > release_notes.md
 
@@ -265,17 +283,18 @@ jobs:
             mkdir -p "$target"
             cp -v "$dir/feed/"* "$target/" 2>/dev/null || true
 
-            if ls "$target"/luci-app-daede_*.ipk >/dev/null 2>&1; then
-              luci=$(basename "$(ls "$target"/luci-app-daede_*.ipk | sort -V | tail -1)")
-            elif ls "$target"/luci-app-daede-*.apk >/dev/null 2>&1; then
-              luci=$(basename "$(ls "$target"/luci-app-daede-*.apk | sort -V | tail -1)")
-            else
-              luci=""
-            fi
-
-            if [ -n "$luci" ]; then
-              echo "luci=$luci" > "$target/manifest-daede.txt"
-            fi
+            manifest=""
+            for pkg in dae daed luci-app-daede; do
+              if ls "$target"/${pkg}_*.ipk >/dev/null 2>&1; then
+                f=$(basename "$(ls "$target"/${pkg}_*.ipk | sort -V | tail -1)")
+              elif ls "$target"/${pkg}-*.apk >/dev/null 2>&1; then
+                f=$(basename "$(ls "$target"/${pkg}-*.apk | sort -V | tail -1)")
+              else
+                f=""
+              fi
+              [ -n "$f" ] && manifest="${manifest}${pkg}=${f}"$'\n'
+            done
+            [ -n "$manifest" ] && printf '%s' "$manifest" > "$target/manifest-daede.txt"
           done
           find feed -type f | sort
 
