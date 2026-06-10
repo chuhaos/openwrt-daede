@@ -91,6 +91,13 @@ define Package/daed/conffiles
 /etc/config/daed
 endef
 
+# Tarball top dir daed-$(PKG_VERSION)/ holds wing/ (=PKG_BUILD_DIR), outbound/,
+# quic-go/. Strip it into DAED_BUILD_DIR so wing/ lands at PKG_BUILD_DIR.
+define Build/Prepare
+	mkdir -p $(DAED_BUILD_DIR)
+	$(TAR) --strip-components=1 -C $(DAED_BUILD_DIR) -xzf $(DL_DIR)/$(PKG_SOURCE)
+endef
+
 DAE_CFLAGS:= \
 	-O2 -Wall -Werror \
 	-DMAX_MATCH_SET_LEN=1024 \
