@@ -368,46 +368,6 @@ function renderDaeForms(ctx) {
 
 	return m.render().then(function(mapNode) {
 
-		/* area-level "Update all subscriptions" — dae re-pulls every subscription
-		   on hot reload, so the action is global, not per-row */
-		const upAllBtn = E('button', { 'class': 'cbi-button cbi-button-action' }, _('Update all subscriptions'));
-		const upAllMsg = E('span', { 'class': 'dd-meta', 'style': 'margin-left:8px;display:none' }, '');
-		function setUpAll(text, kind) {
-			upAllMsg.textContent = text;
-			upAllMsg.style.display = '';
-			upAllMsg.style.color = (kind === 'err') ? 'var(--error-color, #d33)' : (kind === 'ok') ? 'var(--success-color, #2a8)' : '';
-			if (kind !== 'err')
-				setTimeout(function() { if (upAllMsg.textContent === text) upAllMsg.style.display = 'none'; }, 5000);
-		}
-		upAllBtn.addEventListener('click', function(ev) {
-			ev.preventDefault();
-			upAllBtn.disabled = true;
-			setUpAll(_('Updating…'));
-			backend.detectRunning().then(function(r) {
-				if (!r || !r.dae)
-					return setUpAll(_('dae is stopped; it fetches subscriptions on start.'), 'warn');
-				return fs.exec(backend.BACKENDS.dae.initd, ['hot_reload']).then(function(res) {
-					if (res && res.code !== 0)
-						setUpAll(_('Update failed: %s').format(res.stderr || res.stdout || ('exit ' + res.code)), 'err');
-					else
-						setUpAll(_('Subscriptions updated (dae reloaded)'), 'ok');
-				});
-			}).catch(function(e) {
-				setUpAll(_('Update failed: %s').format(e.message || e), 'err');
-			}).finally(function() { upAllBtn.disabled = false; });
-		});
-		const upAllWrap = E('div', { 'class': 'dd-actions', 'style': 'margin:0 0 8px' }, [ upAllBtn, upAllMsg ]);
-		const subSecs = mapNode.querySelectorAll('.cbi-section');
-		for (let i = 0; i < subSecs.length; i++) {
-			const h = subSecs[i].querySelector('h3');
-			if (h && h.textContent.trim() === _('Subscriptions')) {
-				const tbl = subSecs[i].querySelector('.cbi-section-table') || subSecs[i].querySelector('table');
-				if (tbl && tbl.parentNode) tbl.parentNode.insertBefore(upAllWrap, tbl);
-				else subSecs[i].appendChild(upAllWrap);
-				break;
-			}
-		}
-
 		/* beginner default: only Subscriptions starts open; nodes/groups/routing/dns/logging collapse */
 		accordionizeSections(mapNode, [ _('Subscriptions') ]);
 
@@ -445,6 +405,47 @@ function renderDaeForms(ctx) {
 		   proxy is an explicit choice, never an implicit side effect of saving. */
 		return backend.detectRunning().then(function(rr) {
 			const running = rr && rr.dae;
+
+			/* "Update all subscriptions" only helps while dae runs (hot reload
+			   re-pulls them). A stopped dae re-fetches every subscription on
+			   start, so there is nothing to update — hide the button then. */
+			if (running) {
+				const upBtn = E('button', { 'class': 'cbi-button cbi-button-action' }, _('Update all subscriptions'));
+				const upMsg = E('span', { 'class': 'dd-meta', 'style': 'margin-left:8px;display:none' }, '');
+				const setUp = function(text, kind) {
+					upMsg.textContent = text;
+					upMsg.style.display = '';
+					upMsg.style.color = (kind === 'err') ? 'var(--error-color, #d33)' : 'var(--success-color, #2a8)';
+					if (kind !== 'err')
+						setTimeout(function() { if (upMsg.textContent === text) upMsg.style.display = 'none'; }, 5000);
+				};
+				upBtn.addEventListener('click', function(ev) {
+					ev.preventDefault();
+					upBtn.disabled = true;
+					setUp(_('Updating…'));
+					fs.exec(backend.BACKENDS.dae.initd, ['hot_reload']).then(function(res) {
+						if (res && res.code !== 0)
+							setUp(_('Update failed: %s').format(res.stderr || res.stdout || ('exit ' + res.code)), 'err');
+						else
+							setUp(_('Subscriptions updated (dae reloaded)'), 'ok');
+					}).catch(function(e) {
+						setUp(_('Update failed: %s').format(e.message || e), 'err');
+					}).finally(function() { upBtn.disabled = false; });
+				});
+				const upWrap = E('div', { 'class': 'dd-actions', 'style': 'margin:0 0 8px' }, [ upBtn, upMsg ]);
+				const advs = mapNode.querySelectorAll('.dd-adv');
+				for (let i = 0; i < advs.length; i++) {
+					const t = advs[i].querySelector('.dd-adv-bar span');
+					if (t && t.textContent.trim() === _('Subscriptions')) {
+						const body = advs[i].querySelector('.dd-adv-body');
+						const tbl = body && body.querySelector('.cbi-section-table');
+						if (tbl) tbl.parentNode.insertBefore(upWrap, tbl);
+						else if (body) body.insertBefore(upWrap, body.firstChild);
+						break;
+					}
+				}
+			}
+
 			const actions = [];
 			let btns;
 			if (running) {

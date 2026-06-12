@@ -120,7 +120,17 @@ const CSS = [
 	'.dd-ph-list .dd-ph-txt{opacity:.7;word-break:break-all}',
 	'body.dark .dd-card,html[data-theme="dark"] .dd-card,html[data-bs-theme="dark"] .dd-card,html[data-darkmode="true"] .dd-card{border-color:rgba(255,255,255,.08);background:rgba(255,255,255,.02)}',
 	'body.dark .dd-adv-bar,html[data-theme="dark"] .dd-adv-bar,html[data-bs-theme="dark"] .dd-adv-bar,html[data-darkmode="true"] .dd-adv-bar{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.10)}',
-	'body.dark .dd-settings-card .cbi-value-field input,body.dark .dd-settings-card .cbi-value-field select,body.dark .dd-settings-card .cbi-value-field textarea,html[data-theme="dark"] .dd-settings-card .cbi-value-field input,html[data-theme="dark"] .dd-settings-card .cbi-value-field select,html[data-theme="dark"] .dd-settings-card .cbi-value-field textarea,html[data-bs-theme="dark"] .dd-settings-card .cbi-value-field input,html[data-bs-theme="dark"] .dd-settings-card .cbi-value-field select,html[data-bs-theme="dark"] .dd-settings-card .cbi-value-field textarea,html[data-darkmode="true"] .dd-settings-card .cbi-value-field input,html[data-darkmode="true"] .dd-settings-card .cbi-value-field select,html[data-darkmode="true"] .dd-settings-card .cbi-value-field textarea{border-color:rgba(255,255,255,.18)}'
+	'body.dark .dd-settings-card .cbi-value-field input,body.dark .dd-settings-card .cbi-value-field select,body.dark .dd-settings-card .cbi-value-field textarea,html[data-theme="dark"] .dd-settings-card .cbi-value-field input,html[data-theme="dark"] .dd-settings-card .cbi-value-field select,html[data-theme="dark"] .dd-settings-card .cbi-value-field textarea,html[data-bs-theme="dark"] .dd-settings-card .cbi-value-field input,html[data-bs-theme="dark"] .dd-settings-card .cbi-value-field select,html[data-bs-theme="dark"] .dd-settings-card .cbi-value-field textarea,html[data-darkmode="true"] .dd-settings-card .cbi-value-field input,html[data-darkmode="true"] .dd-settings-card .cbi-value-field select,html[data-darkmode="true"] .dd-settings-card .cbi-value-field textarea{border-color:rgba(255,255,255,.18)}',
+	/* phone: render each subscription/node row as a self-contained card instead
+	   of a cramped table (LuCI already block-stacks the cells; we add the card
+	   frame, drop the desktop column widths, and shrink the action buttons) */
+	'@media (max-width:600px){',
+	'.dd-settings-card .cbi-section-table-cell:nth-child(1),.dd-settings-card .cbi-section-table-cell:nth-child(2),.dd-settings-card .cbi-section-table-cell:nth-child(3),.dd-settings-card .cbi-section-table-cell:nth-child(4){width:auto !important;min-width:0 !important;white-space:normal !important;overflow:visible !important;text-overflow:clip !important}',
+	'.dd-settings-card .cbi-section-table-row{display:block;border:1px solid rgba(128,128,128,.2);border-radius:8px;padding:6px 10px;margin:0 0 8px;background:rgba(128,128,128,.03)}',
+	'.dd-settings-card .cbi-section-table-cell{display:block;padding:3px 0 !important}',
+	'.dd-settings-card .cbi-section-actions{display:flex;flex-wrap:wrap;gap:6px;padding-top:6px !important}',
+	'.dd-settings-card .cbi-section-actions .cbi-button{width:auto;margin:0;flex:0 0 auto}',
+	'}'
 ].join('');
 
 return baseclass.extend({ CSS: CSS });
