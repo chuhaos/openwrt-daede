@@ -75,6 +75,15 @@ detect_sdk() {
   printf '%s\n' "$sdk"
 }
 
+# aarch64 subtargets without a feed (e.g. cortex-a76) fall back to aarch64_generic.
+fallback_arch() {
+  case "$1" in
+    aarch64_generic) return 1 ;;
+    aarch64_*)       printf 'aarch64_generic\n' ;;
+    *)               return 1 ;;
+  esac
+}
+
 # Two B2-compatible bases tried per SDK/arch: primary B2 bucket, then the
 # dllkids mirror (reachable from mainland China when B2 is blocked).
 feed_bases() {
@@ -265,14 +274,19 @@ EXT="ipk"
 
 SDK="$(detect_sdk || true)"
 
-if [ -n "$SDK" ] && resolve_from_manifest "$SDK" "$ARCH"; then
-  echo "Using B2 manifest: ${SDK}/${ARCH}"
-elif resolve_from_github "$ARCH" "$EXT"; then
-  echo "Using GitHub latest release"
-else
-  echo "Cannot resolve daede packages for arch: $ARCH"
-  exit 1
-fi
+# Try the exact arch first, then the generic fallback (e.g. cortex-a76 -> generic).
+RESOLVED_ARCH=""
+for a in "$ARCH" $(fallback_arch "$ARCH" || true); do
+  if [ -n "$SDK" ] && resolve_from_manifest "$SDK" "$a"; then
+    echo "Using B2 manifest: ${SDK}/${a}"
+    RESOLVED_ARCH="$a"; break
+  elif resolve_from_github "$a" "$EXT"; then
+    echo "Using GitHub latest release: ${a}"
+    RESOLVED_ARCH="$a"; break
+  fi
+done
+[ -n "$RESOLVED_ARCH" ] || { echo "Cannot resolve daede packages for arch: $ARCH"; exit 1; }
+[ "$RESOLVED_ARCH" = "$ARCH" ] || echo "No ${ARCH} feed; using ${RESOLVED_ARCH} (ABI-compatible)."
 
 rm -rf "$TMP_DIR"
 mkdir -p "$TMP_DIR"
@@ -304,4 +318,4 @@ fi
 echo "Install complete."
 
 # Supply kernel BTF if the firmware ships none, else dae/daed eBPF won't load.
-ensure_btf "$PM" "$ARCH" || true
+ensure_btf "$PM" "$RESOLVED_ARCH" || true
