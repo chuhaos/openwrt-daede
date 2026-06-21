@@ -287,6 +287,12 @@ for a in "$ARCH" $(fallback_arch "$ARCH" || true); do
 done
 [ -n "$RESOLVED_ARCH" ] || { echo "Cannot resolve daede packages for arch: $ARCH"; exit 1; }
 [ "$RESOLVED_ARCH" = "$ARCH" ] || echo "No ${ARCH} feed; using ${RESOLVED_ARCH} (ABI-compatible)."
+# apk rejects packages whose arch is not listed in /etc/apk/arch; register fallback arch
+if [ "$PM" = "apk" ] && [ "$RESOLVED_ARCH" != "$ARCH" ]; then
+  if ! grep -qxF "$RESOLVED_ARCH" /etc/apk/arch 2>/dev/null; then
+    echo "$RESOLVED_ARCH" >> /etc/apk/arch
+  fi
+fi
 
 rm -rf "$TMP_DIR"
 mkdir -p "$TMP_DIR"
